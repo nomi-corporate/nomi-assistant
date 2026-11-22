@@ -5,6 +5,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Nomi.Assistant.Infrastructure.Persistence;
 using Nomi.Assistant.Infrastructure.Identity;
 using Nomi.Assistant.Infrastructure.Transcription;
+using Nomi.Assistant.Infrastructure.Academic;
+using Nomi.Assistant.Infrastructure.Interpretation;
 using Nomi.Assistant.Application;
 
 namespace Nomi.Assistant.Infrastructure;
@@ -21,6 +23,10 @@ public static class DependencyInjection
         services.AddHttpClient("identity", client => client.Timeout = TimeSpan.FromSeconds(5));
         services.AddScoped<IIdentityUserResolver, IdentityUserResolver>();
         services.AddSingleton<IAudioTranscriptionGateway, AwsTranscriptionGateway>();
+        services.AddHttpClient("academic", client => client.Timeout = TimeSpan.FromSeconds(5));
+        services.AddScoped<IAcademicContextClient, AcademicContextClient>();
+        services.AddSingleton<ICommitmentInterpreter, BedrockCommitmentInterpreter>();
+        services.AddSingleton(provider => new ProposalRateLimiter(provider.GetRequiredService<TimeProvider>()));
         if (string.IsNullOrWhiteSpace(connection))
         {
             healthChecks.AddCheck("postgresql",
