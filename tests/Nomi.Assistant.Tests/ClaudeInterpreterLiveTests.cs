@@ -5,13 +5,12 @@ using Nomi.Assistant.Infrastructure.Interpretation;
 namespace Nomi.Assistant.Tests;
 
 /// <summary>
-/// Calls the real model. Runs only with NOMI_BEDROCK_LIVE=1 and AWS credentials allowed to
-/// invoke the model (AWS_PROFILE / AWS_REGION). The CI never sets the variable, so these pass
-/// trivially there.
+/// Calls the real model through the Anthropic API. Runs only with NOMI_CLAUDE_LIVE=1 and
+/// ANTHROPIC_API_KEY set. The CI never sets them, so these pass trivially there.
 /// </summary>
-public sealed class BedrockInterpreterLiveTests
+public sealed class ClaudeInterpreterLiveTests
 {
-    private static readonly bool Live = Environment.GetEnvironmentVariable("NOMI_BEDROCK_LIVE") == "1";
+    private static readonly bool Live = Environment.GetEnvironmentVariable("NOMI_CLAUDE_LIVE") == "1";
     private static readonly Guid Calculus = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid Ana = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly AcademicContext Context = new(
@@ -23,9 +22,9 @@ public sealed class BedrockInterpreterLiveTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["AWS:Region"] = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-2",
+            ["Anthropic:ApiKey"] = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"),
         }).Build();
-        using var interpreter = new BedrockCommitmentInterpreter(configuration);
+        var interpreter = new ClaudeCommitmentInterpreter(configuration);
         return await interpreter.InterpretAsync(new InterpretationInput(text, "America/Sao_Paulo", LocalNow, Context), CancellationToken.None);
     }
 
