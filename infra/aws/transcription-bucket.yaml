@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private temporary audio and transcript storage for Nomi Assistant.
+
+Parameters:
+  AssistantRoleName:
+    Type: String
+    Default: ''
+    Description: Existing runtime IAM role name; leave empty to create only the bucket.
+
+Conditions:
+  AttachRolePolicy: !Not [!Equals [!Ref AssistantRoleName, '']]
+
+Resources:
+  TranscriptionBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteTemporaryAudio
+            Status: Enabled
+            Prefix: audio/
+            ExpirationInDays: 2
+          - Id: DeleteTemporaryTranscripts
+            Status: Enabled
+            Prefix: transcripts/
+            ExpirationInDays: 2
+
+  TranscriptionBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TranscriptionBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RequireTls
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt TranscriptionBucket.Arn
+              - !Sub '${TranscriptionBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+  AssistantTranscriptionPolicy:
+    Type: AWS::IAM::Policy
+    Condition: AttachRolePolicy
+    Properties:
+      PolicyName: nomi-assistant-transcription
+      Roles:
+        - !Ref AssistantRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: BucketRead
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !GetAtt TranscriptionBucket.Arn
+          - Sid: AudioObjects
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+              - !Sub '${TranscriptionBucket.Arn}/audio/*'
+              - !Sub '${TranscriptionBucket.Arn}/transcripts/*'
+          - Sid: TranscriptionJobs
+            Effect: Allow
+            Action:
+              - transcribe:StartTranscriptionJob
+              - transcribe:GetTranscriptionJob
+              - transcribe:DeleteTranscriptionJob
+            Resource: !Sub 'arn:aws:transcribe:${AWS::Region}:${AWS::AccountId}:transcription-job/nomi-*'
+
+Outputs:
+  BucketName:
+    Value: !Ref TranscriptionBucket
+    Description: Set as Transcription__BucketName on Nomi Assistant.

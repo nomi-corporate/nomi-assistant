@@ -3,6 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Nomi.Assistant.Infrastructure.Persistence;
+using Nomi.Assistant.Infrastructure.Identity;
+using Nomi.Assistant.Infrastructure.Transcription;
+using Nomi.Assistant.Application;
 
 namespace Nomi.Assistant.Infrastructure;
 
@@ -14,6 +17,10 @@ public static class DependencyInjection
     {
         var connection = configuration.GetConnectionString("Assistant");
         var healthChecks = services.AddHealthChecks();
+        services.AddSingleton(TimeProvider.System);
+        services.AddHttpClient("identity", client => client.Timeout = TimeSpan.FromSeconds(5));
+        services.AddScoped<IIdentityUserResolver, IdentityUserResolver>();
+        services.AddSingleton<IAudioTranscriptionGateway, AwsTranscriptionGateway>();
         if (string.IsNullOrWhiteSpace(connection))
         {
             healthChecks.AddCheck("postgresql",
@@ -24,6 +31,7 @@ public static class DependencyInjection
 
         services.AddDbContext<AssistantDbContext>(options => options.UseNpgsql(connection,
             provider => provider.MigrationsHistoryTable("__EFMigrationsHistory", "migrations")));
+        services.AddHostedService<AudioRetentionWorker>();
         healthChecks.AddCheck<AssistantDatabaseHealthCheck>("postgresql", tags: ["ready"]);
         return services;
     }

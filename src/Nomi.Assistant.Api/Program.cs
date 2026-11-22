@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Nomi.Assistant.Infrastructure;
+using Nomi.Assistant.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
@@ -12,6 +13,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
 });
+app.MapAudioTranscriptionEndpoints();
 app.Run();
 
 public partial class Program;

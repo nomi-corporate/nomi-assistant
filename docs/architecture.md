@@ -12,7 +12,7 @@ O Academic deve usar Transactional Outbox para publicar eventos associados a alt
 
 ## Decisões pendentes
 
-- Provedor de IA e transcrição.
+- Provedor de IA para interpretar texto e gerar propostas; a transcrição de áudio usa Amazon Transcribe em lote, conforme decisão do responsável em 21/11/2026.
 - Integração Wear OS com cliente Kotlin; novos dispositivos usam contratos versionados e adapters por plataforma.
 - Serviços AWS de execução, mensageria, região e orçamento.
 - Contratos HTTP e eventos e sua estratégia de versionamento.
