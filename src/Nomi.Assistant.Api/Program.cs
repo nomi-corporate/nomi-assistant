@@ -14,6 +14,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("ready")
 });
 app.MapAudioTranscriptionEndpoints();
+app.MapCommitmentProposalEndpoints();
 app.Run();
 
 public partial class Program;

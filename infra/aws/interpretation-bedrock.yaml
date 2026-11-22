@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Lets the Nomi Assistant runtime role invoke only the Claude model used to interpret
+  commitment proposals, through the US cross-region inference profile.
+
+Parameters:
+  AssistantRoleName:
+    Type: String
+    Description: Existing runtime IAM role name (the EC2 role of the development API).
+  InferenceProfileId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Inference profile used by Interpretation__ModelId.
+  FoundationModelId:
+    Type: String
+    Default: anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Foundation model behind the inference profile.
+
+Resources:
+  AssistantInterpretationPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: nomi-assistant-interpretation
+      Roles:
+        - !Ref AssistantRoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: InvokeInterpretationModel
+            Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource:
+              - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${InferenceProfileId}'
+              # The US profile routes requests to any of these US Regions.
+              - !Sub 'arn:aws:bedrock:us-east-1::foundation-model/${FoundationModelId}'
+              - !Sub 'arn:aws:bedrock:us-east-2::foundation-model/${FoundationModelId}'
+              - !Sub 'arn:aws:bedrock:us-west-2::foundation-model/${FoundationModelId}'
