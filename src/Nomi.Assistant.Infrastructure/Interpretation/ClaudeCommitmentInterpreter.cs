@@ -1,10 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using Anthropic;
-using Anthropic.Exceptions;
-using Anthropic.Models.Messages;
-using Microsoft.Extensions.Configuration;
 using Nomi.Assistant.Application;
 
 namespace Nomi.Assistant.Infrastructure.Interpretation;
@@ -14,56 +10,18 @@ namespace Nomi.Assistant.Infrastructure.Interpretation;
 /// (structured outputs, so the reply is always JSON matching <see cref="OutputSchema"/>). The
 /// output is untrusted and is validated by <see cref="CommitmentProposalBuilder"/>.
 /// </summary>
-public sealed class ClaudeCommitmentInterpreter : ICommitmentInterpreter
+public sealed class ClaudeCommitmentInterpreter(ClaudeStructuredClient claude) : ICommitmentInterpreter
 {
-    public const string DefaultModelId = "claude-haiku-5-5";
+    public const string DefaultModelId = ClaudeStructuredClient.DefaultModelId;
     private static readonly string[] WeekDays = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 
-    private readonly string _modelId;
-    private readonly bool _enabled;
-    private readonly Lazy<AnthropicClient> _client;
-
-    public ClaudeCommitmentInterpreter(IConfiguration configuration)
-    {
-        _modelId = configuration["Interpretation:ModelId"] is { Length: > 0 } model ? model : DefaultModelId;
-        var apiKey = configuration["Anthropic:ApiKey"];
-        _enabled = !string.IsNullOrWhiteSpace(apiKey)
-            && !string.Equals(configuration["Interpretation:Enabled"], "false", StringComparison.OrdinalIgnoreCase);
-        _client = new Lazy<AnthropicClient>(() => new AnthropicClient { ApiKey = apiKey, Timeout = TimeSpan.FromSeconds(20), MaxRetries = 2 });
-    }
-
-    public bool IsConfigured => _enabled;
+    public bool IsConfigured => claude.IsConfigured;
 
     public async Task<InterpretationDraft> InterpretAsync(InterpretationInput input, CancellationToken ct)
     {
-        if (!_enabled) throw new InterpreterUnavailableException("The Anthropic API key is not configured.");
-        Message response;
-        try
-        {
-            response = await _client.Value.Messages.Create(new MessageCreateParams
-            {
-                Model = _modelId,
-                MaxTokens = 2048,
-                System = SystemPrompt,
-                Messages = [new UserMessageParam { Content = BuildUserMessage(input) }],
-                OutputConfig = new OutputConfig
-                {
-                    Effort = Effort.Low,
-                    Format = new JsonOutputFormat { Schema = OutputSchema },
-                },
-            }, cancellationToken: ct);
-        }
-        catch (AnthropicApiException error) { throw new InterpreterUnavailableException("Anthropic API rejected or failed the request.", error); }
-        catch (HttpRequestException error) { throw new InterpreterUnavailableException("Anthropic API could not be reached.", error); }
-        catch (TaskCanceledException error) when (!ct.IsCancellationRequested) { throw new InterpreterUnavailableException("Anthropic API timed out.", error); }
-
+        var json = await claude.CompleteJsonAsync(SystemPrompt, BuildUserMessage(input), OutputSchema, ct);
         // A safety refusal is treated like any non-academic request: no candidate.
-        if (response.StopReason == StopReason.Refusal)
-            return new InterpretationDraft(false, null, null, null, null, null, null, null, []);
-        if (response.StopReason == StopReason.MaxTokens)
-            throw new InterpreterUnavailableException("The model output was truncated.");
-
-        var json = string.Concat(response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text));
+        if (json is null) return new InterpretationDraft(false, null, null, null, null, null, null, null, []);
         try
         {
             var raw = JsonSerializer.Deserialize<RawDraft>(json, JsonSerializerOptions.Web)
@@ -76,7 +34,10 @@ public sealed class ClaudeCommitmentInterpreter : ICommitmentInterpreter
         catch (JsonException error) { throw new InterpreterUnavailableException("The model returned malformed JSON.", error); }
     }
 
-    private static string BuildUserMessage(InterpretationInput input)
+    /// <summary>Same "Agora / contexto / texto" framing used by every interpreter.</summary>
+    internal static string BuildUserMessage(InterpretationInput input) => BuildMessage(input);
+
+    private static string BuildMessage(InterpretationInput input)
     {
         var now = input.ReferenceLocalNow;
         var context = new
@@ -112,7 +73,7 @@ public sealed class ClaudeCommitmentInterpreter : ICommitmentInterpreter
         - questions: até 2 perguntas curtas em português somente quando faltar algo essencial ou houver ambiguidade real (field: "due", "subjectId", "title" ou "kind").
         """;
 
-    private static readonly Dictionary<string, JsonElement> OutputSchema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""
+    private static readonly Dictionary<string, JsonElement> OutputSchema = ClaudeStructuredClient.Schema("""
         {
           "type": "object",
           "additionalProperties": false,
@@ -140,7 +101,7 @@ public sealed class ClaudeCommitmentInterpreter : ICommitmentInterpreter
           },
           "required": ["academic", "title", "kind", "description", "subjectId", "professorId", "localDate", "localTime", "questions"]
         }
-        """)!;
+        """);
 
     private sealed record RawQuestion(string? Field, string? Message);
     private sealed record RawDraft(

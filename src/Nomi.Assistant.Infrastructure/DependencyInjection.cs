@@ -25,7 +25,9 @@ public static class DependencyInjection
         services.AddSingleton<IAudioTranscriptionGateway, AwsTranscriptionGateway>();
         services.AddHttpClient("academic", client => client.Timeout = TimeSpan.FromSeconds(5));
         services.AddScoped<IAcademicContextClient, AcademicContextClient>();
+        services.AddSingleton<ClaudeStructuredClient>();
         services.AddSingleton<ICommitmentInterpreter, ClaudeCommitmentInterpreter>();
+        services.AddSingleton<ISemesterInterpreter, ClaudeSemesterInterpreter>();
         services.AddSingleton(provider => new ProposalRateLimiter(provider.GetRequiredService<TimeProvider>()));
         if (string.IsNullOrWhiteSpace(connection))
         {

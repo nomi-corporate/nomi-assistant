@@ -24,7 +24,7 @@ public sealed class ClaudeInterpreterLiveTests
         {
             ["Anthropic:ApiKey"] = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"),
         }).Build();
-        var interpreter = new ClaudeCommitmentInterpreter(configuration);
+        var interpreter = new ClaudeCommitmentInterpreter(new ClaudeStructuredClient(configuration));
         return await interpreter.InterpretAsync(new InterpretationInput(text, "America/Sao_Paulo", LocalNow, Context), CancellationToken.None);
     }
 
