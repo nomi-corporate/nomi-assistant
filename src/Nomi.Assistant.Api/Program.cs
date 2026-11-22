@@ -15,6 +15,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 app.MapAudioTranscriptionEndpoints();
 app.MapCommitmentProposalEndpoints();
+app.MapSemesterProposalEndpoints();
 app.Run();
 
 public partial class Program;

@@ -92,9 +92,9 @@ public static class CommitmentProposalEndpoints
         }, statusCode: StatusCodes.Status201Created);
     }
 
-    private static string? Read(JsonElement input, string name) =>
+    internal static string? Read(JsonElement input, string name) =>
         input.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
-    private static IResult Invalid(string code, string detail) =>
+    internal static IResult Invalid(string code, string detail) =>
         Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: code, detail: detail);
 }
