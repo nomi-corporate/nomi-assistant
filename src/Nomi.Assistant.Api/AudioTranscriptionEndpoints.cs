@@ -13,6 +13,18 @@ public static class AudioTranscriptionEndpoints
     private const long MaxSize = 10_000_000;
     public static IEndpointRouteBuilder MapAudioTranscriptionEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        // Without a database the API must still start (liveness 200, readiness 503); the
+        // transcription routes then report the missing dependency instead of breaking startup.
+        var services = endpoints.ServiceProvider.GetRequiredService<IServiceProviderIsService>();
+        if (!services.IsService(typeof(AssistantDbContext)))
+        {
+            var unavailable = () => Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            endpoints.MapPost("/api/v1/audio-uploads", unavailable);
+            endpoints.MapPost("/api/v1/transcriptions", unavailable);
+            endpoints.MapGet("/api/v1/transcriptions/{id:guid}", unavailable);
+            endpoints.MapDelete("/api/v1/transcriptions/{id:guid}", unavailable);
+            return endpoints;
+        }
         endpoints.MapPost("/api/v1/audio-uploads", CreateUploadAsync);
         endpoints.MapPost("/api/v1/transcriptions", StartAsync);
         endpoints.MapGet("/api/v1/transcriptions/{id:guid}", GetAsync);
